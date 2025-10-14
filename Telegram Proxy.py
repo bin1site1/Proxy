@@ -8,18 +8,24 @@ import jdatetime  # 保留原代码的Jalali日期库（虽未直接使用，保
 
 # -------------------------- 1. 目标TG频道列表（使用您提供的newaddresses）
 newaddresses = [
-    "https://t.me/s/vmessiran",
-    "https://t.me/s/mrsoulb",
-    "https://t.me/s/v2xay",
-    "https://t.me/s/vpnaloo",
-    "https://t.me/s/v2ray_configs_pool",
-    "https://t.me/s/V2RAY_VMESS_free",
-    "https://t.me/s/FreakConfig",
-    "https://t.me/s/v2rayNG_Matsuri",
-    "https://t.me/s/meli_proxyy",
-    "https://t.me/s/Daily_Configs",
-    "https://t.me/s/customv2ray",
-    "https://t.me/s/i10VPN"  # 清除原链接末尾多余空格
+    "https://t.me/s/gaosuwang",
+    "https://t.me/s/ProxyMTProting",
+    "https://t.me/s/hgwzcd",
+    "https://t.me/s/GSDL6",
+    "https://t.me/s/changanhutui",
+    "https://t.me/s/qiuyue2",
+    "https://t.me/s/gsdl01",
+    "https://t.me/s/juzibaipiao",
+    "https://t.me/s/daili81",
+    "https://t.me/s/hbgzs1",
+    "https://t.me/s/VPNzhilian",
+    "https://t.me/s/duxiangdail",
+    "https://t.me/s/XB811",
+    "https://t.me/s/ngg789",
+    "https://t.me/s/TGTW88",
+    "https://t.me/s/afeiSSS",
+    "https://t.me/s/feijidailil",
+    "https://t.me/s/dail99",
 ]
 # --------------------------
 
@@ -54,9 +60,6 @@ for idx, url in enumerate(newaddresses, start=1):
         print(f"✅ 成功获取频道 {idx}/{len(newaddresses)}: {url}")
     except Exception as e:
         print(f"❌ 获取频道 {idx}/{len(newaddresses)} 失败: {url} | 错误: {str(e)[:30]}")
-print(f"\n页面获取完成，共成功加载 {len(html_pages)} 个频道页面\n")
-# --------------------------
-
 
 # -------------------------- 4. 多维度提取Telegram Proxy链接（核心修改：适配Proxy格式）
 codes = []  # 存储原始提取的Proxy链接
@@ -105,21 +108,11 @@ for page_idx, page in enumerate(html_pages, start=1):
             match = match.replace("amp;", "")
             codes.append(match)
 
-    print(f"📥 页面 {page_idx}/{len(html_pages)} 提取完成，累计原始链接: {len(codes)} 条")
-print(f"\n链接提取完成，原始链接总数: {len(codes)} 条\n")
-# --------------------------
-
-
-# -------------------------- 5. 多轮去重 + 规范化处理（参考原代码去重逻辑）
-print("开始去重和规范化处理...")
-
 # 第一轮去重：用set快速去重（原代码逻辑）
 codes = list(set(codes))
-print(f"🔍 第一轮去重（set）后: {len(codes)} 条")
 
 # 第二轮去重：用自定义函数保留顺序去重（原代码逻辑）
 processed_codes = remove_duplicates(codes)
-print(f"🔍 第二轮去重（保留顺序）后: {len(processed_codes)} 条")
 
 # 第三轮去重：规范化链接后去重（参考原代码"第三次去重"逻辑，适配Proxy格式）
 seen = set()
@@ -145,7 +138,6 @@ for item in processed_codes:
         unique_processed.append(item)  # 保留原始链接（仅用norm去重）
 
 processed_codes = unique_processed
-print(f"🔍 第三轮去重（规范化）后: {len(processed_codes)} 条")
 
 # 最终过滤：确保所有链接都是目标格式（双重校验，避免残留无效链接）
 final_proxies = []
@@ -153,14 +145,11 @@ for link in processed_codes:
     link = link.strip().replace("amp;", "")
     if link.startswith(("tg://proxy", "https://t.me/proxy")):
         final_proxies.append(link)
-print(f"✅ 最终有效Proxy链接数: {len(final_proxies)} 条\n")
-# --------------------------
 
 
 # -------------------------- 6. 保存到proxylist.txt（按要求格式：每行一个，空行隔开）
-print("开始保存到 proxylist.txt...")
 if not final_proxies:
-    print("❌ 无有效Proxy链接，无需保存")
+    print("⚠️ 警告：无有效Proxy链接，文件未保存")
 else:
     # 获取上海时区当前时间（参考原代码时间处理逻辑）
     current_date_time = datetime.now(pytz.timezone('Asia/Shanghai'))
