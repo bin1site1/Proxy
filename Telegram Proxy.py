@@ -1,411 +1,192 @@
+import re
 import requests
 from bs4 import BeautifulSoup
-import os
-import datetime
-import sys
-import threading
-import time
-import tkinter as tk
-from tkinter import scrolledtext, messagebox, ttk
-import re
-import pyperclip
+from datetime import datetime
+import pytz
+import jdatetime  # 保留原代码的Jalali日期库（虽未直接使用，保持兼容性）
 
-# 尝试导入 colorama，如果没有安装则忽略（GUI模式不需要）
-try:
-    from colorama import Fore, Style, init
-    init(autoreset=True)
-    HAS_COLOR = True
-except ImportError:
-    HAS_COLOR = False
 
-class TGProxyCrawler:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("TG 代理链接批量抓取工具 V2.0")
-        self.root.geometry("1000x700")
-        self.root.resizable(True, True)
-        
-        # 设置中文字体
-        self.setup_fonts()
-        
-        # 全局状态
-        self.loading_stop = [False]
-        self.failed_count = 0
-        self.extracted_links = set()
-        self.is_running = False
-        
-        # 配置目标URLs
-        self.urls = [
-            "https://t.me/s/gaosuwang",
-            "https://t.me/s/ProxyMTProting",
-            "https://t.me/s/hgwzcd",
-            "https://t.me/s/GSDL6",
-            "https://t.me/s/changanhutui",
-            "https://t.me/s/qiuyue2",
-            "https://t.me/s/gsdl01",
-            "https://t.me/s/juzibaipiao",
-            "https://t.me/s/daili81",
-            "https://t.me/s/hbgzs1",
-            "https://t.me/s/VPNzhilian",
-            "https://t.me/s/duxiangdail",
-            "https://t.me/s/XB811",
-        ]
-        
-        self.total_channels = len(self.urls)
-        self.start_time = None
-        
-        # 创建UI
-        self.create_widgets()
+# -------------------------- 1. 目标TG频道列表（使用您提供的newaddresses）
+newaddresses = [
+    "https://t.me/s/vmessiran",
+    "https://t.me/s/mrsoulb",
+    "https://t.me/s/v2xay",
+    "https://t.me/s/vpnaloo",
+    "https://t.me/s/v2ray_configs_pool",
+    "https://t.me/s/V2RAY_VMESS_free",
+    "https://t.me/s/FreakConfig",
+    "https://t.me/s/v2rayNG_Matsuri",
+    "https://t.me/s/meli_proxyy",
+    "https://t.me/s/Daily_Configs",
+    "https://t.me/s/customv2ray",
+    "https://t.me/s/i10VPN"  # 清除原链接末尾多余空格
+]
+# --------------------------
+
+
+# -------------------------- 2. 定义去重函数（完全复用原代码逻辑）
+def remove_duplicates(input_list):
+    unique_list = []
+    for item in input_list:
+        if item not in unique_list:
+            unique_list.append(item)
+    return unique_list
+# --------------------------
+
+
+# -------------------------- 3. 遍历频道，获取所有网页HTML内容
+html_pages = []
+print("开始获取TG频道页面内容...")
+for idx, url in enumerate(newaddresses, start=1):
+    url = url.strip()  # 清除URL首尾空格
+    if not url:
+        continue
+    try:
+        # 增加User-Agent，避免被TG服务器屏蔽（原代码未加，此处优化补充）
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Accept-Language": "zh-CN,zh;q=0.9"
+        }
+        # 发送GET请求（超时15秒，避免卡壳）
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()  # 触发HTTP错误（如404、500）
+        html_pages.append(response.text)
+        print(f"✅ 成功获取频道 {idx}/{len(newaddresses)}: {url}")
+    except Exception as e:
+        print(f"❌ 获取频道 {idx}/{len(newaddresses)} 失败: {url} | 错误: {str(e)[:30]}")
+print(f"\n页面获取完成，共成功加载 {len(html_pages)} 个频道页面\n")
+# --------------------------
+
+
+# -------------------------- 4. 多维度提取Telegram Proxy链接（核心修改：适配Proxy格式）
+codes = []  # 存储原始提取的Proxy链接
+print("开始提取Proxy链接...")
+for page_idx, page in enumerate(html_pages, start=1):
+    soup = BeautifulSoup(page, 'html.parser')
+    code_tags = soup.find_all('code')
+    found_any = False  # 标记当前页面是否已提取到链接
+
+    # 维度1：从<code>标签提取Proxy（参考原代码code标签逻辑）
+    for code_tag in code_tags:
+        code_content = code_tag.text.strip()
+        # 匹配Proxy链接特征：tg://proxy 或 https://t.me/proxy 或 /proxy（相对路径）
+        if any(prefix in code_content for prefix in ["tg://proxy", "https://t.me/proxy", "/proxy?server="]):
+            # 补全相对路径：/proxy?server= → https://t.me/proxy?server=
+            if code_content.startswith("/proxy?server="):
+                code_content = "https://t.me" + code_content
+            codes.append(code_content)
+            found_any = True
+
+    # 维度2：从<a>标签的href提取Proxy（参考原代码a标签逻辑）
+    for a in soup.find_all('a', href=True):
+        href = a['href'].strip()
+        # 匹配Proxy链接前缀（严格筛选目标格式）
+        if href.startswith(("tg://proxy", "https://t.me/proxy", "/proxy?server=")):
+            # 补全相对路径 + 清除转义字符（如amp;）
+            if href.startswith("/proxy?server="):
+                href = "https://t.me" + href
+            href = href.replace("amp;", "")  # 处理TG页面常见的转义字符
+            codes.append(href)
+            found_any = True
+
+    # 维度3：全局正则兜底（参考原代码正则逻辑，避免漏抓纯文本Proxy）
+    if not found_any:
+        # 正则表达式：匹配 tg://proxy/... 或 https://t.me/proxy/... 或 /proxy?server=...
+        # 终止符：空白、引号、尖括号、右括号（避免匹配多余内容）
+        proxy_pattern = re.compile(
+            r'(?:tg://proxy|https://t\.me/proxy|/proxy\?server=)[^\s\'"<>)]+',
+            re.IGNORECASE  # 忽略大小写（如TG://PROXY也能匹配）
+        )
+        matches = proxy_pattern.findall(page)
+        for match in matches:
+            # 补全相对路径 + 清除转义字符
+            if match.startswith("/proxy?server="):
+                match = "https://t.me" + match
+            match = match.replace("amp;", "")
+            codes.append(match)
+
+    print(f"📥 页面 {page_idx}/{len(html_pages)} 提取完成，累计原始链接: {len(codes)} 条")
+print(f"\n链接提取完成，原始链接总数: {len(codes)} 条\n")
+# --------------------------
+
+
+# -------------------------- 5. 多轮去重 + 规范化处理（参考原代码去重逻辑）
+print("开始去重和规范化处理...")
+
+# 第一轮去重：用set快速去重（原代码逻辑）
+codes = list(set(codes))
+print(f"🔍 第一轮去重（set）后: {len(codes)} 条")
+
+# 第二轮去重：用自定义函数保留顺序去重（原代码逻辑）
+processed_codes = remove_duplicates(codes)
+print(f"🔍 第二轮去重（保留顺序）后: {len(processed_codes)} 条")
+
+# 第三轮去重：规范化链接后去重（参考原代码"第三次去重"逻辑，适配Proxy格式）
+seen = set()
+unique_processed = []
+for item in processed_codes:
+    # 规范化步骤：1. 清除首尾空格 2. 去除末尾斜杠 3. 统一协议格式
+    norm = item.strip()
+    norm = norm.rstrip('/')  # 去除末尾多余斜杠（如 tg://proxy/ → tg://proxy）
+    norm = norm.replace("amp;", "")  # 再次清除转义字符（双重保险）
     
-    def setup_fonts(self):
-        """设置支持中文的字体"""
-        default_font = ('SimHei', 10)
-        self.root.option_add("*Font", default_font)
-    
-    def create_widgets(self):
-        """创建所有UI组件"""
-        # 顶部软件名称
-        header_frame = tk.Frame(self.root, pady=10)
-        header_frame.pack(fill=tk.X, padx=10)
-        
-        title_label = tk.Label(
-            header_frame, 
-            text="TG 代理链接批量抓取工具 V2.0", 
-            font=('SimHei', 16, 'bold')
-        )
-        title_label.pack()
-        
-        subtitle_label = tk.Label(
-            header_frame, 
-            text="自动抓取多个频道代理，支持一键复制结果", 
-            fg="#666666"
-        )
-        subtitle_label.pack()
-        
-        # 中间分隔面板
-        middle_frame = tk.Frame(self.root)
-        middle_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        
-        # 自定义数据源输入框
-        custom_source_frame = tk.LabelFrame(middle_frame, text="自定义数据源", padx=5, pady=5)
-        custom_source_frame.pack(fill=tk.X, padx=0, pady=(0, 5))
-        
-        self.custom_urls_entry = scrolledtext.ScrolledText(
-            custom_source_frame,
-            wrap=tk.WORD,
-            height=3
-        )
-        self.custom_urls_entry.pack(fill=tk.X, expand=False)
-        
-        hint_label = tk.Label(
-            custom_source_frame,
-            text="提示：每行输入一个URL，为空则使用默认数据源",
-            fg="#666666",
-            font=('SimHei', 8)
-        )
-        hint_label.pack(anchor=tk.W, pady=(2, 0))
-        
-        # 执行日志面板
-        log_frame = tk.LabelFrame(middle_frame, text="执行日志", padx=5, pady=5)
-        log_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
-        
-        self.log_text = scrolledtext.ScrolledText(
-            log_frame, 
-            wrap=tk.WORD, 
-            state=tk.DISABLED,
-            bg="#f0f0f0"
-        )
-        self.log_text.pack(fill=tk.BOTH, expand=True)
-        
-        # 输出结果面板
-        result_frame = tk.LabelFrame(middle_frame, text="输出完整结果", padx=5, pady=5)
-        result_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
-        
-        self.result_text = scrolledtext.ScrolledText(
-            result_frame, 
-            wrap=tk.WORD, 
-            state=tk.DISABLED
-        )
-        self.result_text.pack(fill=tk.BOTH, expand=True)
-        
-        # 底部按钮面板（已移除“清空日志”和“清空结果”按钮）
-        button_frame = tk.Frame(self.root, pady=10)
-        button_frame.pack(fill=tk.X, padx=10)
-        
-        # 按钮样式
-        button_style = {'padx': 15, 'pady': 5, 'width': 12}
-        
-        self.start_btn = tk.Button(
-            button_frame, 
-            text="开始处理", 
-            command=self.start_processing,
-            **button_style,
-            bg="#4CAF50",
-            fg="white"
-        )
-        self.start_btn.pack(side=tk.LEFT, padx=(0, 10))
-        
-        self.copy_btn = tk.Button(
-            button_frame, 
-            text="一键复制结果", 
-            command=self.copy_results,
-            **button_style,
-            bg="#2196F3",
-            fg="white"
-        )
-        self.copy_btn.pack(side=tk.LEFT, padx=(0, 10))
-        
-        # 清除自定义数据源按钮
-        self.clear_custom_btn = tk.Button(
-            button_frame, 
-            text="清除自定义数据源", 
-            command=self.clear_custom_source,
-            **button_style,
-            bg="#f44336",
-            fg="white"
-        )
-        self.clear_custom_btn.pack(side=tk.LEFT)
-        
-        # 进度条
-        self.progress_frame = tk.Frame(self.root)
-        self.progress_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(
-            self.progress_frame,
-            variable=self.progress_var,
-            maximum=100,
-            mode='determinate'
-        )
-        self.progress_bar.pack(fill=tk.X, side=tk.LEFT, expand=True)
-        
-        self.progress_label = tk.Label(self.progress_frame, text="0%")
-        self.progress_label.pack(side=tk.RIGHT, padx=5)
-        
-        # 状态栏
-        self.status_var = tk.StringVar()
-        self.status_var.set("就绪")
-        status_bar = tk.Label(
-            self.root, 
-            textvariable=self.status_var, 
-            bd=1, 
-            relief=tk.SUNKEN, 
-            anchor=tk.W
-        )
-        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
-    
-    def clear_custom_source(self):
-        """清除自定义数据源输入框内容"""
-        self.custom_urls_entry.delete(1.0, tk.END)
-        self.log("自定义数据源已清空")
-    
-    def get_effective_urls(self):
-        """获取有效的URL列表（自定义或默认），并自动补全格式"""
-        custom_urls_text = self.custom_urls_entry.get(1.0, tk.END).strip()
-        
-        if custom_urls_text:
-            # 处理自定义URL，过滤空行并补全格式
-            custom_urls = []
-            for url in custom_urls_text.split('\n'):
-                url = url.strip()
-                if not url:
-                    continue
-                # 补全URL格式：将 https://t.me/xxx 转换为 https://t.me/s/xxx
-                if re.match(r'^https://t\.me/[^/]+$', url):
-                    corrected_url = url.replace('https://t.me/', 'https://t.me/s/')
-                    self.log(f"自动补全URL格式: {url} -> {corrected_url}")
-                    custom_urls.append(corrected_url)
-                else:
-                    custom_urls.append(url)
-            return custom_urls
-        else:
-            # 使用默认URL
-            return self.urls.copy()
-    
-    def log(self, message, is_error=False):
-        """向日志文本框添加消息"""
-        self.log_text.config(state=tk.NORMAL)
-        timestamp = datetime.datetime.now().strftime('%H:%M:%S')
-        
-        if is_error:
-            self.log_text.insert(tk.END, f"[{timestamp}] 错误: {message}\n", "error")
-        else:
-            self.log_text.insert(tk.END, f"[{timestamp}] {message}\n")
-            
-        self.log_text.tag_config("error", foreground="red")
-        self.log_text.see(tk.END)
-        self.log_text.config(state=tk.DISABLED)
-    
-    def update_results(self):
-        """更新结果文本框"""
-        self.result_text.config(state=tk.NORMAL)
-        self.result_text.delete(1.0, tk.END)
-        
-        for link in sorted(self.extracted_links):
-            self.result_text.insert(tk.END, f"{link}\n\n")
-            
-        self.result_text.see(tk.END)
-        self.result_text.config(state=tk.DISABLED)
-    
-    def copy_results(self):
-        """复制结果到剪贴板"""
-        if not self.extracted_links:
-            messagebox.showinfo("提示", "没有可复制的结果")
-            return
-            
-        result_str = "\n\n".join(sorted(self.extracted_links))
-        pyperclip.copy(result_str)
-        self.log("结果已复制到剪贴板")
-    
-    def start_processing(self):
-        """开始处理任务（在新线程中运行）"""
-        if self.is_running:
-            messagebox.showinfo("提示", "任务正在运行中")
-            return
-            
-        self.is_running = True
-        self.start_btn.config(text="处理中...", state=tk.DISABLED)
-        self.extracted_links.clear()
-        self.failed_count = 0
-        self.start_time = datetime.datetime.now()
-        
-        # 获取有效的URL列表
-        self.effective_urls = self.get_effective_urls()
-        self.total_channels = len(self.effective_urls)
-        
-        # 重置进度条
-        self.progress_var.set(0)
-        self.progress_label.config(text="0%")
-        
-        self.log("开始抓取代理链接...")
-        self.log(f"目标频道数: {self.total_channels} 个")
-        self.log(f"启动时间: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # 在新线程中执行抓取任务，避免UI冻结
-        threading.Thread(target=self.process_channels, daemon=True).start()
-    
-    def process_channels(self):
-        """处理所有频道"""
-        for idx, url in enumerate(self.effective_urls, start=1):
-            if not self.is_running:  # 检查是否需要停止
+    # 处理特殊情况：确保链接以目标协议开头
+    if not norm.lower().startswith(("tg://proxy", "https://t.me/proxy")):
+        # 重新匹配协议位置，截取正确链接（避免残留多余前缀）
+        for proto in ("tg://proxy", "https://t.me/proxy"):
+            if proto in norm.lower():
+                idx = norm.lower().find(proto)
+                norm = norm[idx:]  # 从协议开头截取
                 break
-                
-            channel_name = url.split('/')[-1]
-            self.loading_stop[0] = False
-            
-            # 更新状态栏
-            self.status_var.set(f"正在处理: {channel_name} ({idx}/{self.total_channels})")
-            
-            try:
-                # 启动加载动画（在主线程更新UI）
-                self.root.after(0, self.update_loading, channel_name)
-                
-                # 网络请求
-                response = requests.get(
-                    url,
-                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'},
-                    timeout=12
-                )
-                response.raise_for_status()
-                self.loading_stop[0] = False
-                
-                # 解析链接
-                soup = BeautifulSoup(response.content, 'html.parser')
-                links = soup.find_all('a', href=True)
-                
-                found_in_channel = 0
-                for link in links:
-                    href = link.get('href').replace('amp;', '') if link.get('href') else ""
-                    # 代理链接前缀判断
-                    if any(href.startswith(prefix) for prefix in [
-                        "https://t.me/proxy?server=",
-                        "tg://proxy?server=",
-                        "/proxy?server=",
-                        "https://t.me/s/proxy?server="
-                    ]):
-                        if href.startswith("/"):
-                            href = "https://t.me" + href
-                        self.extracted_links.add(href)
-                        found_in_channel += 1
-                
-                self.log(f"处理完成: {channel_name}，找到 {found_in_channel} 条代理")
-                # 更新结果显示
-                self.root.after(0, self.update_results)
-                
-            except requests.exceptions.RequestException as e:
-                self.failed_count += 1
-                self.log(f"网络错误 - 频道[{channel_name}]: {str(e)[:50]}", is_error=True)
-            except Exception as e:
-                self.failed_count += 1
-                self.log(f"解析错误 - 频道[{channel_name}]: {str(e)[:50]}", is_error=True)
-            finally:
-                self.loading_stop[0] = True
-            
-            # 更新进度条
-            progress = (idx / self.total_channels) * 100
-            self.root.after(0, self.update_progress, progress)
-            self.status_var.set(f"处理进度: {progress:.1f}% ({idx}/{self.total_channels})")
-        
-        # 任务完成
-        self.root.after(0, self.complete_processing)
     
-    def update_progress(self, value):
-        """更新进度条显示"""
-        self.progress_var.set(value)
-        self.progress_label.config(text=f"{value:.1f}%")
-    
-    def update_loading(self, channel_name):
-        """更新加载动画（在主线程中执行）"""
-        if not self.loading_stop[0] and self.is_running:
-            current_text = self.status_var.get()
-            if not re.search(r'[|/\-\\]$', current_text):
-                self.status_var.set(f"正在请求: {channel_name} |")
-            elif current_text.endswith('|'):
-                self.status_var.set(f"正在请求: {channel_name} /")
-            elif current_text.endswith('/'):
-                self.status_var.set(f"正在请求: {channel_name} -")
-            elif current_text.endswith('-'):
-                self.status_var.set(f"正在请求: {channel_name} \\")
-            
-            # 继续更新动画
-            self.root.after(150, self.update_loading, channel_name)
-    
-    def complete_processing(self):
-        """完成处理任务"""
-        elapsed = (datetime.datetime.now() - self.start_time).total_seconds()
-        success_count = self.total_channels - self.failed_count
-        success_rate = (success_count / self.total_channels * 100) if self.total_channels > 0 else 0
-        
-        self.log("\n===== 抓取任务完成 =====")
-        self.log(f"总频道数: {self.total_channels}")
-        self.log(f"成功解析: {success_count}")
-        self.log(f"解析失败: {self.failed_count}")
-        self.log(f"有效代理: {len(self.extracted_links)}")
-        self.log(f"总耗时: {elapsed:.2f}秒")
-        self.log(f"成功率: {success_rate:.1f}%")
-        
-        # 确保进度条显示100%
-        self.root.after(0, self.update_progress, 100)
-        self.status_var.set("就绪")
-        self.start_btn.config(text="开始处理", state=tk.NORMAL)
-        self.is_running = False
-        
-        # 保存结果到文件
-        if self.extracted_links:
-            try:
-                desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-                timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
-                output_file = os.path.join(desktop_path, f"TG代理_{len(self.extracted_links)}条_{timestamp}.txt")
-                
-                with open(output_file, 'w', encoding='utf-8') as f:
-                    for link in sorted(self.extracted_links):
-                        f.write(f"{link}\n\n")
-                
-                self.log(f"结果已保存至: {output_file}")
-            except Exception as e:
-                self.log(f"保存文件失败: {str(e)}", is_error=True)
+    # 去重：仅保留未出现过的规范化链接
+    if norm not in seen:
+        seen.add(norm)
+        unique_processed.append(item)  # 保留原始链接（仅用norm去重）
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = TGProxyCrawler(root)
-    root.mainloop()
+processed_codes = unique_processed
+print(f"🔍 第三轮去重（规范化）后: {len(processed_codes)} 条")
+
+# 最终过滤：确保所有链接都是目标格式（双重校验，避免残留无效链接）
+final_proxies = []
+for link in processed_codes:
+    link = link.strip().replace("amp;", "")
+    if link.startswith(("tg://proxy", "https://t.me/proxy")):
+        final_proxies.append(link)
+print(f"✅ 最终有效Proxy链接数: {len(final_proxies)} 条\n")
+# --------------------------
+
+
+# -------------------------- 6. 保存到proxylist.txt（按要求格式：每行一个，空行隔开）
+print("开始保存到 proxylist.txt...")
+if not final_proxies:
+    print("❌ 无有效Proxy链接，无需保存")
+else:
+    # 获取上海时区当前时间（参考原代码时间处理逻辑）
+    current_date_time = datetime.now(pytz.timezone('Asia/Shanghai'))
+    final_string = current_date_time.strftime("%m月%d日 | %H:%M")  # 中文时间格式
+    final_others_string = current_date_time.strftime("%m月%d日")
+
+    # 写入文件（编码UTF-8，避免中文乱码）
+    with open("proxylist.txt", "w", encoding="utf-8") as file:
+        # 写入头部注释（参考原代码注释逻辑，方便识别）
+        file.write(f"# Telegram Proxy 抓取结果\n")
+        file.write(f"# 抓取时间: {final_string}（上海时区）\n")
+        file.write(f"# 抓取频道数: {len(newaddresses)} 个\n")
+        file.write(f"# 有效Proxy数: {len(final_proxies)} 条\n")
+        file.write(f"# 格式: 每行一个链接，行与行空行隔开\n")
+        file.write("-" + "-"*50 + "\n\n")  # 分隔线
+
+        # 按要求写入链接：每行一个，行与行空行隔开
+        for proxy in final_proxies:
+            file.write(f"{proxy}\n")  # 写入链接
+            file.write("\n")  # 空行（行与行隔开）
+
+    print(f"✅ 保存成功！文件路径: {os.path.abspath('proxylist.txt')}")
+    print(f"📄 文件格式：每行1个Proxy链接，行与行空行隔开")
+
+print("\n" + "="*50)
+print("🎉 所有操作完成！")
+print(f"📊 最终结果：共抓取 {len(final_proxies)} 条有效Telegram Proxy链接")
+print(f"📁 保存文件：proxylist.txt（当前目录）")
+print("-"*50)
