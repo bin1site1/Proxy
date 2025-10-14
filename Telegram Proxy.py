@@ -57,13 +57,13 @@ for idx, url in enumerate(newaddresses, start=1):
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()  # 触发HTTP错误（如404、500）
         html_pages.append(response.text)
-        print(f"✅ 成功获取频道 {idx}/{len(newaddresses)}: {url}")
+        print(f"")
     except Exception as e:
-        print(f"❌ 获取频道 {idx}/{len(newaddresses)} 失败: {url} | 错误: {str(e)[:30]}")
+        print(f"")
 
 # -------------------------- 4. 多维度提取Telegram Proxy链接（核心修改：适配Proxy格式）
 codes = []  # 存储原始提取的Proxy链接
-print("开始提取Proxy链接...")
+print("")
 for page_idx, page in enumerate(html_pages, start=1):
     soup = BeautifulSoup(page, 'html.parser')
     code_tags = soup.find_all('code')
