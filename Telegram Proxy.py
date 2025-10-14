@@ -181,12 +181,3 @@ else:
         for proxy in final_proxies:
             file.write(f"{proxy}\n")  # 写入链接
             file.write("\n")  # 空行（行与行隔开）
-
-    print(f"✅ 保存成功！文件路径: {os.path.abspath('proxylist.txt')}")
-    print(f"📄 文件格式：每行1个Proxy链接，行与行空行隔开")
-
-print("\n" + "="*50)
-print("🎉 所有操作完成！")
-print(f"📊 最终结果：共抓取 {len(final_proxies)} 条有效Telegram Proxy链接")
-print(f"📁 保存文件：proxylist.txt（当前目录）")
-print("-"*50)
