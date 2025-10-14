@@ -159,11 +159,9 @@ else:
     # 写入文件（编码UTF-8，避免中文乱码）
     with open("proxylist.txt", "w", encoding="utf-8") as file:
         # 写入头部注释（参考原代码注释逻辑，方便识别）
-        file.write(f"# Telegram Proxy 抓取结果\n")
         file.write(f"# 抓取时间: {final_string}（上海时区）\n")
         file.write(f"# 抓取频道数: {len(newaddresses)} 个\n")
         file.write(f"# 有效Proxy数: {len(final_proxies)} 条\n")
-        file.write(f"# 格式: 每行一个链接，行与行空行隔开\n")
         file.write("-" + "-"*50 + "\n\n")  # 分隔线
 
         # 按要求写入链接：每行一个，行与行空行隔开
