@@ -145,11 +145,9 @@ for link in processed_codes:
     link = link.strip().replace("amp;", "")
     if link.startswith(("tg://proxy", "https://t.me/proxy")):
         final_proxies.append(link)
-
-
 # -------------------------- 6. 保存到proxylist.txt（按要求格式：每行一个，空行隔开）
 if not final_proxies:
-    print("⚠️ 警告：无有效Proxy链接，文件未保存")
+    print("")
 else:
     # 获取上海时区当前时间（参考原代码时间处理逻辑）
     current_date_time = datetime.now(pytz.timezone('Asia/Shanghai'))
