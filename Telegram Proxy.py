@@ -37,37 +37,21 @@ def remove_duplicates(input_list):
         if item not in unique_list:
             unique_list.append(item)
     return unique_list
-# --------------------------
 
+html_pages = []  # 用于存储每个网页的HTML内容
 
-# -------------------------- 3. 遍历频道，获取所有网页HTML内容
-html_pages = []
-print("开始获取TG频道页面内容...")
-for idx, url in enumerate(newaddresses, start=1):
-    url = url.strip()  # 清除URL首尾空格
-    if not url:
-        continue
-    try:
-        # 增加User-Agent，避免被TG服务器屏蔽（原代码未加，此处优化补充）
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-            "Accept-Language": "zh-CN,zh;q=0.9"
-        }
-        # 发送GET请求（超时15秒，避免卡壳）
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()  # 触发HTTP错误（如404、500）
-        html_pages.append(response.text)
-        print(f"")
-    except Exception as e:
-        print(f"")
+# 遍历所有地址，获取网页内容
+for url in newaddresses:
+    response = requests.get(url)  # 发送GET请求
+    html_pages.append(response.text)  # 保存网页内容
 
-# -------------------------- 4. 多维度提取Telegram Proxy链接（核心修改：适配Proxy格式）
-codes = []  # 存储原始提取的Proxy链接
-print("")
-for page_idx, page in enumerate(html_pages, start=1):
-    soup = BeautifulSoup(page, 'html.parser')
-    code_tags = soup.find_all('code')
-    found_any = False  # 标记当前页面是否已提取到链接
+codes = []  # 用于存储所有抓取到的配置代码
+
+# 遍历所有HTML页面，解析并提取code标签内容
+for page in html_pages:
+    soup = BeautifulSoup(page, 'html.parser')  # 解析HTML
+    code_tags = soup.find_all('code')  # 查找所有code标签
+    found_any = False
 
     # 维度1：从<code>标签提取Proxy（参考原代码code标签逻辑）
     for code_tag in code_tags:
@@ -146,9 +130,7 @@ for link in processed_codes:
     if link.startswith(("tg://proxy", "https://t.me/proxy")):
         final_proxies.append(link)
 # -------------------------- 6. 保存到proxylist.txt（按要求格式：每行一个，空行隔开）
-if not final_proxies:
-    print("")
-else:
+if final_proxies:
     # 获取上海时区当前时间（参考原代码时间处理逻辑）
     current_date_time = datetime.now(pytz.timezone('Asia/Shanghai'))
     final_string = current_date_time.strftime("%m月%d日 | %H:%M")  # 中文时间格式
